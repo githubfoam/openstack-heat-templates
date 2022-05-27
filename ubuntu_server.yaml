@@ -1,0 +1,15 @@
+heat_template_version: 2015-04-30                                             
+description: >
+  Simple template to deploy 2x core CPU 2G RAM  
+  ubuntu 18.04 LTS										  
+resources:                              
+  instance:                             
+    type: OS::Nova::Server              
+    properties:                         
+      flavor: 2_CPU.2GB_RAM                
+      image: Ulakbim Ubuntu Server 18.04.LTS Cloud
+      networks:                         
+        - network: tacnet              
+      key_name: cloud-key
+      security_groups:
+        - ubuntusecgrp
