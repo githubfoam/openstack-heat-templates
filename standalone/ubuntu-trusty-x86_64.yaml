@@ -1,0 +1,18 @@
+# https://docs.openstack.org/mitaka/install-guide-obs/launch-instance-heat.html
+# heat_template_version: 2015-04-30 
+heat_template_version: 2016-10-14
+
+description: >
+  Simple nested template to deploy 2x core CPU 2G RAM  
+  ubuntu 20.04 LTS	cluster
+
+
+resources:
+
+  instance:
+    type: OS::Nova::Server
+    properties:
+      flavor: m1.small
+      image: ubuntu-trusty-x86_64
+      networks:
+        - network: private
