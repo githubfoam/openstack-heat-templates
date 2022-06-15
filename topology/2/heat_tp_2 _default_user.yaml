@@ -123,7 +123,7 @@ parameters:
   heat_ssh_access:
     type: string
     description: CIDR representation of the service subnet.
-    default: "95.183.197.1/32"
+    default: "185.184.197.1/32"
 
 resources:
 
