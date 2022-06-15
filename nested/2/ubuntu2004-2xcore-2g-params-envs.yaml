@@ -1,0 +1,10 @@
+# https://docs.openstack.org/heat/latest/template_guide/environment.html
+parameter_defaults:
+ key_name: ubuntu_keys
+
+parameters:
+ network_id: bak_net
+#  instance_name: "ubuntu2004_%index%"
+ instance_type: "2_CPU.2GB_RAM"
+ image_id: "Ubuntu Server 20.04.LTS Cloud"
+ security_group: ubuntusecgrp
