@@ -1,0 +1,98 @@
+heat_template_version: 2016-10-14
+
+description: >
+  Template for scaling by stack update,
+  Scaling the stack by changing the count parameter value through the declared parameter cluster_size
+  Scaling down is done in the same way, by decreasing the count parameter
+  openstack stack update <stack-name> --template <template-name> --parameter <parameter-name:value>
+
+parameters:
+
+  image:
+    type: string
+    label: Image name or ID
+    description: Image to be used for compute instance
+    default: "Ubuntu Server 16.04.LTS Cloud"
+
+  flavor:
+    type: string
+    label: Flavor
+    description: Type of instance (flavor) to be used
+    default: "2_CPU.2GB_RAM"
+
+  key:
+    type: string
+    label: Key name
+    description: Name of key-pair to be used for compute instance
+    default: ubuntu_keys
+
+  heat_secgroup:
+    type: string
+    description : Security group used on instance
+    default: ubuntusecgrp
+
+  private_network:
+    type: string
+    label: Private network name or ID
+    description: Network to attach instance to.
+    default: testnetwork
+
+  heat_cluster_size:
+    type: number
+    description: Number of instances in the cluster
+    default: 1
+
+resources:
+
+
+  #The two types of resource groups are OS::Heat::ResourceGroup which can be used 
+  # to change the group size by modifying the count property in the parent stack, 
+  # and OS::Heat::AutoScalingGroup with one or more OS::Heat::ScalingPolicy which 
+  # allows scale operations triggered by signals (webhooks or workload alarms).
+  heat_rg:
+    type: OS::Heat::ResourceGroup
+    properties:
+      # count: 2
+      count: { get_param: heat_cluster_size }
+      resource_def:
+        type: OS::Nova::Server
+        properties:
+          name: ubuntusrv_%index%
+          image: { get_param: image }
+          flavor: { get_param: flavor }
+          # block_device_mapping: [{"volume_size": { get_param: VOLUME_SIZE }, "volume_id": { get_resource: SYS-VOL }, "delete_on_termination": True, "device_name": "/dev/vda" }]
+          key_name: { get_param: key }
+          networks:
+            # - port: { get_resource: heat_server_port}
+            - network: { get_param: private_network }
+          security_groups: 
+            - { get_param: heat_secgroup }
+            - default 
+          user_data_format: RAW
+          user_data: |
+            #!/bin/sh
+            sudo apt-get update
+            HOST_IP_ADDR=$(hostname -I | awk '{print $1}')
+            echo $HOST_IP_ADDR
+            cat /etc/hosts
+            echo "nameserver $HOST_IP_ADDR" |sudo tee -a /etc/hosts
+            cat /etc/hosts #verify
+          
+
+
+
+
+# https://docs.openstack.org/heat/pike/template_guide/openstack.html#OS::Heat::ResourceGroup
+outputs:
+  private_ips:
+      description: "Private IP addresses in resource group"
+      value: { get_attr: [heat_rg, "attributes", first_address] }
+  refs:
+      description: "Resource ID"
+      value: { get_attr: [heat_rg, refs] }
+  refs_map:
+      description: "A list of resource IDs for the resources in the group"
+      value: { get_attr: [heat_rg, refs_map] }
+  resource_group_show:
+      description: "A list of resource IDs for the resources in the group"
+      value: { get_attr: [heat_rg, show] }    
