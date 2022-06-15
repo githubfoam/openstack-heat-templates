@@ -178,18 +178,8 @@ resources:
       name: { get_param: virtual_firewall }
       description: FWaaS
       firewall_policy_id: { get_resource: heat_firewall_pol_web_1 }
-      # firewall_policy_id: [{get_resource: heat_firewall_pol_web_1 }]
-      # firewall_policy_id: [{ get_resource: heat_firewall_pol_dns_1 },{ get_resource: heat_firewall_pol_dns_1 }]
-      # firewall_policy_id:
-      #   - { get_resource: heat_firewall_pol_web_1 }
-      #   - { get_resource: heat_firewall_pol_dns_1 }
-      #   - { get_resource: fw_pol_ssh_1 }
-      #associate firewall with the router
       value_specs: {"router_ids": [{get_resource: heat_router}]}
-      # FWaaS has added extended attribute to insert routers to firewalls.
-      # value_specs:
-      #   router_ids:
-      #     - {get_resource: router1}
+
 
 # https://docs.openstack.org/heat/pike/template_guide/openstack.html#OS::Neutron::FirewallPolicy
   heat_firewall_pol_web_1:
@@ -198,8 +188,6 @@ resources:
       name: { get_param: virtual_firewall_policy_1 }
       description: Web Firewall Policy
       # audited: true
-      # firewall_rules: [{ get_resource: heat_firewall_tcp_80 }]
-      # firewall_rules: [{ get_resource: heat_firewall_tcp_80 },{ get_resource: heat_firewall_udp_53 }]
       firewall_rules:
         - { get_resource: heat_firewall_tcp_22 }
         - { get_resource: heat_firewall_tcp_43 }
