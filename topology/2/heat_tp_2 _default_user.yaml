@@ -162,10 +162,8 @@ resources:
     properties:
       name: { get_param: private_network_subnet }
       network: { get_resource: heat_network }
-      cidr: "10.1.1.0/24"
       cidr: "10.35.35.0/24"
       dns_nameservers: ["8.8.8.8"]
-      gateway_ip: "10.1.1.1"
       gateway_ip: "10.35.35.1"
       ip_version: 4
 
