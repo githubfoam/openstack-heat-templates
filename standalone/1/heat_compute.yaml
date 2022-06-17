@@ -1,0 +1,169 @@
+heat_template_version: 2016-10-14
+
+description: >
+  Template to deploy a single volume and a single server,
+
+parameters:
+
+  image:
+    type: string
+    label: Image name or ID
+    description: Image to be used for compute instance
+    default: "Ubuntu Server 16.04.LTS Cloud"
+
+  flavor:
+    type: string
+    label: Flavor
+    description: Type of instance (flavor) to be used
+    default: "2_CPU.2GB_RAM"
+
+  db_port:
+    type: number 
+    description: Database port number 
+    default: 5432 
+    constraints:
+      - range: { min: 5000, max: 60000 } 
+        description: Port number must be between 5000 and 60000     
+  key:
+    type: string
+    label: Key name
+    description: Name of key-pair to be used for compute instance
+    default: ubuntu_keys
+
+  private_network:
+    type: string
+    label: Private network name or ID
+    description: Network to attach instance to.
+    default: heat_network
+
+  private_network_subnet:
+    type: string
+    label: Private network name or ID
+    description: Network to attach instance to.
+    default: heat_subnet
+  
+  network:
+    type: string 
+    description: network uuid - Any network ID (master-net)
+    default: "120c99e6-be37-4f6f-b1ee-3246b6abaf10"
+
+  heat_volume_size:
+    type: number
+    label: Volume Size (GB)
+    description: External Volume Size in GB
+    default: 1
+
+  az:
+      type: string
+      description: Availability zone
+      default:  nova
+
+  vm_name:
+    type: string 
+    description: name of vm 
+    default: heat_server  
+
+  sg_name:
+    type: string 
+    description: security group 
+    default: ubuntusecgrp 
+
+resources:
+
+  #server
+  heat_server:
+    type: OS::Nova::Server
+    properties:
+      # name: heat_server
+      name: { get_param: vm_name } 
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      availability_zone: { get_param: az }
+      # block_device_mapping: [{"volume_size": { get_param: VOLUME_SIZE }, "volume_id": { get_resource: SYS-VOL }, "delete_on_termination": True, "device_name": "/dev/vda" }]
+      key_name: { get_param: key }
+      security_groups: [{get_param: sg_name }] 
+      networks: ["uuid": {get_param: network} ] 
+      # change default user and password for any image.
+      user_data_format: RAW
+      user_data:
+        str_replace:
+          template: |
+            #cloud-config
+            user: bubuntu
+            password: bubuntu
+            chpasswd: {expire: False}
+            write_files:
+              - content: |
+                  #!/bin/bash
+                  vol1_id="%vol1_id%"
+                  vol1_dev="/dev/disk/by-id/virtio-$(echo ${vol1_id} | cut -c -20)"
+                  mkfs.ext4 ${vol1_dev}
+                  mkdir -pv /media/disk
+                  echo "${vol1_dev} /media/disk ext4 defaults 1 2" >> /etc/fstab
+                  mount /media/disk
+                  adduser sample-user 
+                  echo  db_port
+                path: /tmp/disk-config
+                permissions: '0700'
+              runcmd:
+                - /tmp/disk-config                          
+          # Although Nova cannot fetch the volume device name, 
+          # it can use the volume_id which - truncated to 20 characters 
+          # is also used in the by-id identifier on the server as 
+          # /dev/disk/by-id/virtio-<truncated-volume_id>.
+          # The script takes the variable vol1_id which is 
+          # assigned the Cinder ID of the volume created
+          #The variable name is surrounded by a special 
+          # character (percent) to make it unique and thereby avoid false matches.
+          # The script is saved as /tmp/disk-config
+          # ls -l /dev/disk/by-id, cat /etc/fstab, lsblk
+          # params:
+          #   "%vol1_id%": { get_resource: heat_volume }          
+          params:
+            "%vol1_id%": { get_resource: heat_volume }
+            "db_port": {get_param: db_port }                    
+
+              
+
+
+  heat_volume:
+    type: OS::Cinder::Volume
+    properties:
+      name: "heat-vol-01 "
+      size: { get_param: heat_volume_size }
+      volume_type: "SSD"
+      availability_zone: { get_param: az }
+      # https://docs.openstack.org/heat/pike/template_guide/openstack.html#OS::Cinder::Volume
+      #If specified, the name or ID of the image to create the volume from
+      # image : { get_param: image } 
+
+  heat_volume_attachment:
+    type: OS::Cinder::VolumeAttachment
+    properties:      
+      volume_id: { get_resource: heat_volume }      
+      instance_uuid: { get_resource: heat_server }
+
+
+
+
+# The resource name must exist in the resources section of the template.
+# https://docs.openstack.org/heat/latest/template_guide/hot_spec.html#hot-spec-intrinsic-functions
+outputs:
+  instance_name:
+    description: Name of the instance
+    value: { get_attr: [heat_server, name] }
+  instance_details:
+    description: Shows details of  virtual servers.
+    value: { get_attr: [ heat_server, show ] }
+  instance_ip:
+    description: IP address of the instance
+    value: { get_attr: [heat_server, first_address] }
+  server_networks:
+    description: The networks of the deployed server 
+    value: { get_attr: [heat_server, networks] }
+  instance_public_ip:
+    description: Private IP address of the deployed compute instance
+    value: { get_attr: [heat_server, networks, public, 0] }
+  instance_private_ip:
+    description: Private IP address of the deployed compute instance
+    value: { get_attr: [heat_server, networks, private, 0] }

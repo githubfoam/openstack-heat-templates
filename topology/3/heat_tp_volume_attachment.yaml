@@ -178,12 +178,6 @@ resources:
       name: { get_param: virtual_firewall }
       description: FWaaS
       firewall_policy_id: { get_resource: heat_firewall_pol_web_1 } #OK
-      # firewall_policy_id: [{get_resource: heat_firewall_pol_web_1 }]
-      # firewall_policy_id: [{ get_resource: heat_firewall_pol_dns_1 },{ get_resource: heat_firewall_pol_dns_1 }]
-      # firewall_policy_id:
-      #   - { get_resource: heat_firewall_pol_web_1 }
-      #   - { get_resource: heat_firewall_pol_dns_1 }
-      #   - { get_resource: fw_pol_ssh_1 }
       #associate firewall with the router
       value_specs: {"router_ids": [{get_resource: heat_router}]}
       # FWaaS has added extended attribute to insert routers to firewalls.
@@ -356,7 +350,7 @@ resources:
     properties:
       floating_network: { get_param: ext-net }
       # Resource CREATE failed: Forbidden: resources.heat_server_public_ip: (rule:create_floatingip and rule:create_floatingip:floating_ip_address) on {'description': '', 'subnet_id': None, 'tenant_id': u'a94499e31f7e42e8aeb3949a5dd48e4d', u'floating_network_id':
-      # floating_ip_address: "185.7.3.86"
+      # floating_ip_address: "184.89.3.56"
 
 
   heat_server_ip_assoc:
