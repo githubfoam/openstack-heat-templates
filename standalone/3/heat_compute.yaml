@@ -1,0 +1,40 @@
+heat_template_version: 2016-10-14
+
+description: >
+  Template to deploy a single volume and a single server,
+
+description: Simple template to set the admin password for a compute
+
+parameters:
+  key_name:
+    type: string
+    label: Key Name
+    description: Name of the key pair to be used for the compute instance
+  image_name:
+    type: string
+    label: Image Name
+    description: ame of the image to be used for the compute instance
+  password:
+    type: string
+    label: password
+    description: admin password
+    hidden: true
+
+ 
+resources:
+  my_instance:
+    type: OS::Nova::Server
+    properties:
+      key_name: { get_param: key_name }
+      admin_user: sampleuser
+      image: { get_param: image_name }
+      flavor: m1.small
+      user_data:
+        str_replace:
+          template: |
+            #!/bin/bash
+            echo "Setting  password to  " $password           
+            echo $password |passwd --stdin sampleuser
+
+          params:
+            $password: { get_param: password }
