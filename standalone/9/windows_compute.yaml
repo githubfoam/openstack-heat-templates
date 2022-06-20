@@ -3,9 +3,6 @@ heat_template_version: 2016-10-14
 description: >
   Simple template to build a windows instance w floating ip,
 
-description: >
-  Create a Virtual Server with a Floating IP assigned. 
-
 parameters:
   KEY_NAME:
     type: string
