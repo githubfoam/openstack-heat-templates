@@ -1,7 +1,9 @@
-heat_template_version: 2015-04-30                                             
+heat_template_version: 2015-04-30
+
 description: >
   Simple template to deploy 2x core CPU 2G RAM  
   ubuntu 18.04 LTS										  
+
 resources:                              
   instance:                             
     type: OS::Nova::Server              

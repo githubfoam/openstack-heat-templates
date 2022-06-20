@@ -1,9 +1,7 @@
 heat_template_version: 2016-10-14
 
 description: >
-  Template to deploy a single volume and a single server,
-
-description: Simple template to set the admin password for a compute
+  Simple template to set the admin password for a compute,
 
 parameters:
   key_name:

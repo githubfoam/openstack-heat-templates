@@ -1,7 +1,7 @@
 heat_template_version: 2016-10-14
 
 description: >
-  Template to topology w router,networks,instances,
+  Template to deploy topology w router,networks,instances,
 
 parameters:
   external_network:

@@ -223,16 +223,40 @@ resources:
       # destination_ip_address: {get_param: nameserver_ip1}
       action: allow
 
+  #dns tcp
   heat_firewall_tcp_53:
     type: OS::Neutron::FirewallRule
     properties:
       name: { get_param: virtual_heat_firewall_tcp_53 }
       description: fw rule tcp 53 - dns domain name
-      source_port: "53"
+      destination_port: "53"
       protocol: tcp
       # source_ip_address: {get_param: service_subnet1_cidr}
       # destination_ip_address: {get_param: nameserver_ip1}
       action: allow
+
+  #dns udp
+  heat_firewall_tcp_53:
+    type: OS::Neutron::FirewallRule
+    properties:
+      name: { get_param: virtual_heat_firewall_tcp_53 }
+      description: fw rule udp 53 - dns domain name
+      destination_port: "53"
+      protocol: udp
+      # source_ip_address: {get_param: service_subnet1_cidr}
+      # destination_ip_address: {get_param: nameserver_ip1}
+      action: allow
+
+  #ping icmp rule
+  heat_firewall_tcp_53:
+    type: OS::Neutron::FirewallRule
+    properties:
+      name: { get_param: virtual_heat_firewall_tcp_53 }
+      description: fw rule icmp - ping
+      protocol: icmp
+      # source_ip_address: {get_param: service_subnet1_cidr}
+      # destination_ip_address: {get_param: nameserver_ip1}
+      action: allow      
 
   # https://docs.openstack.org/heat/pike/template_guide/openstack.html#OS::Neutron::FirewallRule
   heat_firewall_tcp_80:

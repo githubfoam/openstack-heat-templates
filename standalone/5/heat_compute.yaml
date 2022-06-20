@@ -1,0 +1,133 @@
+heat_template_version: 2016-10-14
+
+description: >
+  Simple template to build an instance w volume,network,security group,floating ip,
+
+parameters:
+  az:
+    type: string
+    description: availability zone
+    default: nova
+    
+  network_name:
+    type: string
+    description: name of network
+    default: heat_network
+    
+  subnet_name:
+    type: string
+    description: name of subnet
+    default: heat_subnet
+    
+  subnet_cidr:
+    type: string
+    description: subnet CIDR
+    default: 192.168.0.0/24
+    
+  port_name:
+    type: string
+    description: name of vm
+    default: heat_port
+    
+  sg_name:
+    type: string
+    description: security group
+    default: heat_sg
+    
+  key_name:
+    type: string
+    description: name of keypair
+    default: heat_key
+    
+  image:
+    type: string
+    description: Image ID or image name to use for the server
+    default: 123ed3f8-1233-4b14-91c8-feb387d12345
+    
+  volume_name:
+    type: string
+    description: name of volume
+    default: heat_volume
+    
+  flavor:
+    type: string
+    description: Flavor for the server to be created
+    default: T-1
+    
+  vm_name:
+    type: string
+    description: name of vm
+    default: heat_vm
+  
+
+resources:
+  network:
+    type: OS::Neutron::Net
+    properties:
+      name: { get_param : network_name }
+      availability_zone: { get_param : az }
+
+  subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      name: { get_param : subnet_name }
+      network_id: { get_resource : network }
+      availability_zone: { get_param : az }
+      cidr: { get_param : subnet_cidr }
+
+  port:
+    type: OS::Neutron::Port
+    properties:
+      name: { get_param : port_name }
+      network_id: { get_resource: network }
+      availability_zone: { get_param: az }
+      security_groups:
+        - {get_resource: sg }
+      fixed_ips:
+        - subnet_id: { get_resource: subnet }
+
+  sg:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      name: { get_param : sg_name }
+      rules:
+        # HTTP
+        - { direction: egress, ethertype: IPv4, port_range_min: 80, port_range_max: 80, protocol: tcp, remote_ip_prefix: 0.0.0.0/0 }
+        # HTTPS
+        - { direction: egress, ethertype: IPv4, port_range_min: 443, port_range_max: 443, protocol: tcp, remote_ip_prefix: 0.0.0.0/0 }
+        # DNS
+        - { direction: egress, ethertype: IPv4, port_range_min: 53, port_range_max: 53, protocol: tcp, remote_ip_prefix: 0.0.0.0/0 }
+        - { direction: egress, ethertype: IPv4, port_range_min: 53, port_range_max: 53, protocol: udp, remote_ip_prefix: 0.0.0.0/0 }
+
+  key:
+    type: OS::Nova::KeyPair
+    properties:
+      name: { get_param: key_name }
+      save_private_key: true
+      availability_zones: [{ get_param: az }]
+
+  sys-vol:
+    type: OS::Cinder::Volume
+    properties:
+      name: { get_param: volume_name }
+      size: 30
+      volume_type: "M1"
+      availability_zone: { get_param: az }
+      image : { get_param: image }
+
+  server:
+    type: OS::Nova::Server
+    properties:
+      key_name: { get_resource: key }
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      networks: ["port": {get_resource: port} ]
+      name: { get_param: vm_name }
+      block_device_mapping:
+      - device_name: vda
+        volume_id: {get_resource: sys-vol}
+        
+outputs:
+  private_key:
+    description: private key of created key pair
+    value: { get_attr: [key, private_key] }

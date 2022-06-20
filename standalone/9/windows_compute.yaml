@@ -1,0 +1,123 @@
+heat_template_version: 2016-10-14
+
+description: >
+  Simple template to build a windows instance w floating ip,
+
+description: >
+  Create a Virtual Server with a Floating IP assigned. 
+
+parameters:
+  KEY_NAME:
+    type: string
+    description: Name of the existing key pair used for the Virtual Server
+    default: TEST_KEY_01
+
+  FLAVOR_NAME:
+    type: string
+    description: Name or ID of the Flavor type of the Virtual Server to create
+    default: S-1
+
+  IMAGE_ID:
+    type: string
+    description: Image ID or image name to use for the Virtual Server (CentOS)
+    default: c3867e5e-afd6-4858-918e-c445f9041c9d
+
+  AZ:
+    type: string
+    description: Name of the Availability Zone to deploy the Virtual Server in
+    default: nova
+
+  SERVER_NAME:
+    type: string
+    description: Name of the Virtual Server to create
+    default: Heat_Server_01
+
+  SECURITY_GROUP_ID:
+    type: string
+    description: ID of the Security Group associated with the Virtual Server
+    default: c3867e5e-afd6-4858-918e-c445f9041c9d
+
+  EXT_NETWORK_ID:
+    type: string
+    description: External Network ID assigned to the Floating IP
+    default: c3867e5e-afd6-4858-918e-c445f9041c9d
+
+  PRIVATE_NETWORK_ID:
+    type: string
+    description: ID of the Private Network to deploy the Virtual Server on
+    default: c3867e5e-afd6-4858-918e-c445f9041c9d
+
+  SUBNET_ID:
+    type: string
+    description: ID of the Subnet to deploy the Virtual Server on
+    default: c3867e5e-afd6-4858-918e-c445f9041c9d
+
+  PORT_IP_ADDRESS:
+    type: string
+    description: IP address assigned to the Virtual Server
+    default: 192.168.11.11
+
+  VOLUME_NAME:
+    type: string
+    description: Name of the system volume of the Virtual Server
+    default: Heat_Volume_01
+
+  VOLUME_SIZE:
+    type: string
+    description: Volume size of the system volume of the Virtual Server
+    default: 30
+
+resources:
+  SERVER_PORT:
+    type: OS::Neutron::Port
+    properties:
+      admin_state_up: true
+      network_id: { get_param: PRIVATE_NETWORK_ID }
+      fixed_ips: [{"ip_address": { get_param: PORT_IP_ADDRESS }, "subnet_id": { get_param: SUBNET_ID }}]
+      security_groups: [{ get_param: SECURITY_GROUP_ID }]
+      availability_zone: { get_param: AZ }
+
+  SERVER_FLOATING_IP:
+    type: OS::Neutron::FloatingIP
+    properties:
+      fixed_ip_address: { get_param: PORT_IP_ADDRESS }
+      floating_network_id: { get_param: EXT_NETWORK_ID }
+      port_id: { get_resource: SERVER_PORT }
+      availability_zone: { get_param: AZ }
+
+  SYS-VOL:
+    type: OS::Cinder::Volume
+    properties:
+      name: { get_param: VOLUME_NAME }
+      size: { get_param: VOLUME_SIZE }
+      volume_type: "M1"
+      image : { get_param: IMAGE_ID }
+      availability_zone: { get_param: AZ }
+
+  SERVER:
+    type: OS::Nova::Server
+    properties:
+      name: { get_param: SERVER_NAME }
+      availability_zone: { get_param: AZ }
+      block_device_mapping: [{"volume_size": { get_param: VOLUME_SIZE }, "volume_id": { get_resource: SYS-VOL }, "delete_on_termination": True, "device_name": "/dev/vda" }]
+      flavor: { get_param: FLAVOR_NAME }
+      image: { get_param: IMAGE_ID }
+      key_name: { get_param: KEY_NAME }
+      networks: [{"port": { get_resource: SERVER_PORT }}]
+
+
+outputs: 
+  SERVER_PRIVATE_IP:
+    description: IP address of server in private network
+    value: { get_attr: [ SERVER, first_address ] }
+
+  SERVER_EXT_IP:
+    description: Floating IP address of server in public network
+    value: { get_attr: [ SERVER_FLOATING_IP, floating_ip_address ] }
+
+  SERVER_DETAILS:
+    description: Shows details of all virtual servers.
+    value: { get_attr: [ SERVER, show ] }
+            
+            
+            
