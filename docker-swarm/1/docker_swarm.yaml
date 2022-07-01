@@ -1,0 +1,394 @@
+heat_template_version: 2016-10-14
+
+description: >
+  Template to deploy docker swarn topology 
+  with instances,1x router,firewall(FaaS),network,
+
+parameters:
+
+  image:
+    type: string
+    label: Image name or ID
+    description: Image to be used for compute instance
+    default: "CentOS 8(Stream) Cloud"
+
+  flavor:
+    type: string
+    label: Flavor
+    description: Type of instance (flavor) to be used
+    # default: "2_CPU.2GB_RAM"
+    default: "1_CPU.2GB_RAM"
+
+  key:
+    type: string
+    label: Key name
+    description: Name of key-pair to be used for compute instance
+    default: centos_keys
+
+  private_network:
+    type: string
+    label: Private network name or ID
+    description: Network to attach instance to.
+    default: heat_network
+
+  private_network_subnet:
+    type: string
+    label: Private network name or ID
+    description: Network to attach instance to.
+    default: heat_subnet
+
+  virtual_router:
+    type: string
+    label: Private network name or ID
+    description: Network to attach instance to.
+    default: heat_router
+
+  heat_volume_size:
+    type: number
+    label: Volume Size (GB)
+    description: External Volume Size in GB
+    default: 1
+
+  #firewall
+  virtual_firewall:
+    type: string
+    label: Virtual network firewall name or ID
+    description: Firewall to attach virtual router to.
+    default: heat-fw
+
+  az:
+      type: string
+      description: Availability zone
+      default:  nova
+  #public network
+  ext-net:
+    type: string
+    default: ext_net2
+
+  heat_ssh_access:
+    type: string
+    description: CIDR representation of the service subnet.
+    default: "10.10.17.1/32"
+
+  count:
+    type: number
+    default: 2
+
+resources:
+
+
+  # wait_condition:
+  #   type: OS::Heat::WaitCondition
+  #   properties:
+  #     handle: {get_resource: wait_handle}
+  #     count: 1
+  #     timeout: 300
+
+  # wait_handle:
+  #   type: OS::Heat::WaitConditionHandle
+
+# router
+# https://docs.openstack.org/heat/queens/template_guide/openstack.html#OS::Neutron::LBaaS::LoadBalancer
+  heat_router:
+    type: OS::Neutron::Router #first build router
+    properties:
+      # external_gateway_info: { network: ext_net2 }
+      name: { get_param: virtual_router }
+      # Update the stack by adding the following line to enable
+      # the router to connect to external networks.
+      external_gateway_info: {"network": {get_param: ext-net} }
+        # network:
+        #   get_param: floating-network-id
+
+  heat_router_interface:
+    type: OS::Neutron::RouterInterface
+    depends_on: [ heat_router ]
+    properties:
+      router_id: { get_resource: heat_router }
+      subnet: { get_resource: heat_network_subnet }
+
+
+  #network
+  heat_network:
+    type: OS::Neutron::Net
+    depends_on: [ heat_router ] # network is built if virtual router is built
+    properties:
+      admin_state_up: true
+      name: { get_param: private_network }
+
+  heat_network_subnet:
+    type: OS::Neutron::Subnet
+    depends_on: [ heat_network ]
+    properties:
+      name: { get_param: private_network_subnet }
+      network: { get_resource: heat_network }
+      cidr: "10.1.1.0/24"
+      cidr: "10.35.35.0/24"
+      dns_nameservers: ["8.8.8.8"]
+      gateway_ip: "10.1.1.1"
+      gateway_ip: "10.35.35.1"
+      ip_version: 4
+
+#firewall
+# https://docs.openstack.org/heat/pike/template_guide/openstack.html#OS::Neutron::Firewall
+  heat_firewall:
+    type: OS::Neutron::Firewall
+    depends_on: [ heat_router ] # firewall-FWaaS is built if virtual router is built
+    properties:
+      name: { get_param: virtual_firewall }
+      description: FWaaS
+      firewall_policy_id: { get_resource: heat_firewall_pol_web_1 }
+      #associate firewall with the router
+      # FWaaS has added extended attribute to insert routers to firewalls.
+      value_specs: {"router_ids": [{get_resource: heat_router}]}
+      # value_specs:
+      #   router_ids:
+      #     - {get_resource: router1}
+
+# https://docs.openstack.org/heat/pike/template_guide/openstack.html#OS::Neutron::FirewallPolicy
+  heat_firewall_pol_web_1:
+    type: OS::Neutron::FirewallPolicy
+    properties:
+      name: "heat_firewall_pol_web_1"
+      description: Heat Firewall Policy 
+      # audited: true
+      firewall_rules:
+        - { get_resource: heat_firewall_icmp }      
+        - { get_resource: heat_firewall_tcp_22 }
+        # - { get_resource: heat_firewall_tcp_43 }
+        # - { get_resource: heat_firewall_tcp_53 }
+        - { get_resource: heat_firewall_udp_53 }
+        - { get_resource: heat_firewall_tcp_80 }
+        - { get_resource: heat_firewall_tcp_443 }
+
+  #ping icmp rule
+  heat_firewall_icmp:
+    type: OS::Neutron::FirewallRule
+    properties:
+      name: "heat_firewall_icmp"
+      description: fw rule icmp - ping
+      protocol: icmp
+      # source_ip_address: {get_param: service_subnet1_cidr}
+      # destination_ip_address: {get_param: nameserver_ip1}
+      action: allow       
+
+  heat_firewall_tcp_22:
+    type: OS::Neutron::FirewallRule
+    properties:
+      name: "heat_firewall_tcp_22"
+      description: fw rule ssh 22
+      # source_port: "22"
+      destination_port: "22"
+      protocol: tcp
+      source_ip_address: { get_param: heat_ssh_access }
+      # destination_ip_address: { get_param: heat_ssh_access }
+      action: allow
+
+  # heat_firewall_tcp_43:
+  #   type: OS::Neutron::FirewallRule
+  #   properties:
+  #     name: "heat_firewall_tcp_43"
+  #     description: fw rule tcp 43 - whois lookup
+  #     destination_port: "43"
+  #     protocol: tcp
+  #     # source_ip_address: {get_param: service_subnet1_cidr}
+  #     # destination_ip_address: {get_param: nameserver_ip1}
+  #     action: allow
+
+
+  #dns udp
+  heat_firewall_udp_53:
+    type: OS::Neutron::FirewallRule
+    properties:
+      name: "heat_firewall_udp_53"
+      description: fw rule udp 53 - dns domain name
+      destination_port: "53"
+      protocol: udp
+      # source_ip_address: {get_param: service_subnet1_cidr}
+      # destination_ip_address: {get_param: nameserver_ip1}
+      action: allow   
+
+  # https://docs.openstack.org/heat/pike/template_guide/openstack.html#OS::Neutron::FirewallRule
+  heat_firewall_tcp_80:
+    type: OS::Neutron::FirewallRule
+    properties:
+      name: "heat_firewall_tcp_80"
+      description: fw rule tcp 80
+      destination_port: "80"
+      protocol: tcp
+      # source_ip_address: {get_param: service_subnet1_cidr}
+      action: allow
+
+  # https://docs.openstack.org/heat/pike/template_guide/openstack.html#OS::Neutron::FirewallRule
+  heat_firewall_tcp_443:
+    type: OS::Neutron::FirewallRule
+    properties:
+      name: "heat_firewall_tcp_443"
+      description: fw rule tcp 443
+      destination_port: "443"
+      protocol: tcp
+      action: allow
+
+  # HOST BASED . Different from NETWORK BASED FWaaS-Firewall
+  heat_security_group:
+    type: OS::Neutron::SecurityGroup
+    # depends_on: [ heat_server ] # specific to heat_server
+    properties:
+      name: heat security group
+      rules:
+        - protocol: icmp
+        - protocol: tcp
+          port_range_min: 22
+          port_range_max: 22
+        - protocol: tcp
+          port_range_min: 443
+          port_range_max: 443
+        - protocol: tcp
+          port_range_min: 80
+          port_range_max: 80
+
+
+  #manager
+  heat_server:
+    type: OS::Nova::Server
+    properties:
+      name: "docker-swarm-manager"
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      availability_zone: { get_param: az }
+      # block_device_mapping: [{"volume_size": { get_param: VOLUME_SIZE }, "volume_id": { get_resource: SYS-VOL }, "delete_on_termination": True, "device_name": "/dev/vda" }]
+      key_name: { get_param: key }
+      networks:
+        - port: { get_resource: heat_server_port}
+      config_drive: True     
+      user_data_format: RAW        
+      user_data: |
+        #!/bin/sh
+        HOST_IP_ADDR=$(hostname -I | awk '{print $1}')
+        echo $HOST_IP_ADDR
+        cat /etc/hosts
+        # yum clean all
+        # yum update -y
+        # yum install -y ntp    
+        # ntpdate 0.centos.pool.ntp.org
+        # systemctl start ntpd
+        # systemctl enable ntpd
+        # yum install -y yum-utils
+        # yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+        # yum install -y docker-ce
+        # systemctl start docker
+        # systemctl enable docker
+        # docker swarm init
+        # token=$(docker swarm join-token -q worker)
+        # echo $token         
+             
+
+
+  heat_server_port:
+    type: OS::Neutron::Port
+    properties:
+      network: { get_resource: heat_network }
+      security_groups:
+        - { get_resource: heat_security_group }
+      fixed_ips:
+        - subnet_id: { get_resource: heat_network_subnet }
+
+
+  heat_volume:
+    type: OS::Cinder::Volume
+    properties:
+      size: { get_param: heat_volume_size }
+
+  heat_volume_attachment:
+    type: OS::Cinder::VolumeAttachment
+    properties:
+      volume_id: { get_resource: heat_volume }
+      instance_uuid: { get_resource: heat_server }
+
+
+
+  #public IP or floating IP
+  heat_server_public_ip:
+    type: OS::Neutron::FloatingIP
+    depends_on: [ heat_network ]
+    properties:
+      floating_network: { get_param: ext-net }
+      # Resource CREATE failed: Forbidden: resources.heat_server_public_ip: (rule:create_floatingip and rule:create_floatingip:floating_ip_address) on {'description': '', 'subnet_id': None, 'tenant_id': u'a94499e31f7e42e8aeb3949a5dd48e4d', u'floating_network_id':
+      # floating_ip_address: "194.8.3.96"
+
+
+  heat_server_ip_assoc:
+    # https://docs.openstack.org/heat/pike/template_guide/openstack.html#OS::Neutron::FloatingIPAssociation
+    type: OS::Neutron::FloatingIPAssociation
+    depends_on: [ heat_network ]
+    properties:
+      floatingip_id: { get_resource: heat_server_public_ip }
+      port_id: { get_resource: heat_server_port }
+
+  resource_group:
+    type: OS::Heat::ResourceGroup
+    # depends_on: wait_condition
+    depends_on: heat_network # network must be created first
+    properties:
+      count: { get_param: count }
+      index_var: "%id%"
+      resource_def:
+        type: OS::Nova::Server
+        properties:
+          image: { get_param: image }
+          flavor: { get_param: flavor }
+          key_name: { get_param: key }
+          networks:
+            - network: { get_param: private_network }    
+          # networks: # auto port assignment
+          #   - port: { get_resource: heat_server_port}            
+          name: docker-swarm-worker-%id%
+          config_drive: True
+          user_data_format: RAW
+          user_data: |
+            #!/bin/sh
+            HOST_IP_ADDR=$(hostname -I | awk '{print $1}')
+            echo $HOST_IP_ADDR
+            cat /etc/hosts
+            # yum clean all
+            # yum update -y
+            # yum install -y ntp    
+            # ntpdate 0.centos.pool.ntp.org
+            # systemctl start ntpd
+            # systemctl enable ntpd
+            # yum install -y yum-utils
+            # yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+            # yum install -y docker-ce
+            # systemctl start docker
+            # systemctl enable docker
+            # docker swarm init
+            # token=$(docker swarm join-token -q worker)
+            # echo $token
+
+# The resource name must exist in the resources section of the template.
+# https://docs.openstack.org/heat/latest/template_guide/hot_spec.html#hot-spec-intrinsic-functions
+outputs:
+  instance_name:
+    description: Name of the instance
+    value: { get_attr: [heat_server, name] }
+  instance_details:
+    description: Shows details of  virtual servers.
+    value: { get_attr: [ heat_server, show ] }
+  resource_group_details:
+    description: Shows details of  resource_group.
+    value: { get_attr: [ resource_group, show ] }    
+  instance_ip:
+    description: IP address of the instance
+    value: { get_attr: [heat_server, first_address] }
+  heat_server_public_ip:
+    description: IP Address of the deployed heat_server instance
+    value: { get_attr: [ heat_server_public_ip, floating_ip_address ]}
+  instance_private_ip:
+    description: Private IP address of the deployed compute instance
+    value: { get_attr: [heat_server, networks, private, 0] }
+  instance_public_ip:
+    description: Private IP address of the deployed compute instance
+    value: { get_attr: [heat_server, networks, public, 0] }
+  firewall_details:
+    description: Shows details of firewall.
+    value: { get_attr: [ heat_firewall, show ] }
